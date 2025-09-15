@@ -6,16 +6,16 @@ from common.logging import configure_logging, get_logger
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from.activities import (
+from .activities import (
     cleanup_successful_agent_artifacts,
     generate_code,
     parse_test_results,
     refine_prompt,
     run_tests_in_sandbox,
 )
-from.config import get_settings
-from.workflows.agent_workflow import AgentFSMWorkflow
-from.workflows.main_workflow import MainSagaWorkflow
+from .config import get_settings
+from .workflows.agent_workflow import AgentFSMWorkflow
+from .workflows.main_workflow import MainSagaWorkflow
 
 # 在模块级别获取配置和日志记录器
 settings = get_settings()
