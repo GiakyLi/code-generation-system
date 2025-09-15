@@ -1,40 +1,4 @@
 # /sandbox/src/sandbox/main.py
-# 技术审计与重构报告
-#
-# ### 1. 核心变更: 集成配置、日志和分布式追踪
-#
-# 这是Sandbox微服务的API入口。我们对其进行了全面的现代化改造, 使其成为一个健壮、
-# 可观测的生产级服务。
-#
-# ### 2. 关键改进
-#
-# - **移除启动时镜像构建**: 最重要的变更是移除了`@app.on_event("startup")`中
-#   构建Docker镜像的逻辑。如前所述, 这遵循了不可变基础设施原则, 极大地提高了
-#   服务的启动速度和可靠性。现在, `startup`事件只用于打印一条日志, 确认服务
-#   已成功启动。
-#
-# - **依赖注入**: `SandboxManager`和配置实例现在通过依赖注入的方式进行管理。
-#   `get_settings`和`get_sandbox_manager`函数利用`lru_cache`来确保这些
-#   昂贵的对象(如Docker客户端连接)在应用的生命周期内只被创建一次。
-#   FastAPI的依赖注入系统会自动处理这些, 使得端点函数`execute_tests_endpoint`
-#   的逻辑非常干净。
-#
-# - **分布式追踪中间件**: 我们添加了一个新的FastAPI中间件`LoggingMiddleware`。
-#   它的作用是:
-#   1. 检查传入请求的`X-Trace-ID`头。
-#   2. 如果存在, 就将这个ID绑定到`structlog`的上下文中。
-#   这意味着从这个请求处理开始, 直到它完成, 所有由该服务产生的日志都会自动
-#   包含这个`trace_id`。这使得我们将Sandbox的日志与Orchestrator的日志关联
-#   起来成为可能, 实现了端到端的追踪。
-#
-# - **健康检查端点**: 新增了`/health`端点。这个简单的端点返回`{"status": "ok"}`,
-#   用于`docker-compose.yml`中的`healthcheck`。这比检查进程是否存在要可靠得多,
-#   因为它能确认Web服务本身是否仍在正常响应请求。
-#
-# - **更完善的错误处理**: 端点中的`try...except`块现在能捕获我们自定义的
-#   `SandboxExecutionError`, 并将其详细信息(包括stdout和stderr)格式化
-#   到一个结构化的`SandboxResponse`中返回给调用者(Orchestrator)。
-#   这为工作流提供了更丰富的失败上下文。
 
 from functools import lru_cache
 from typing import Any, Callable, Dict
@@ -122,7 +86,7 @@ async def execute_tests_endpoint(
         )
         return SandboxResponse(
             summary={"error": "Sandbox execution failed"},
-            tests=,
+            tests=[],
             stdout=e.stdout,
             stderr=e.stderr,
             error=str(e),

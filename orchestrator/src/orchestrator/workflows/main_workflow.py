@@ -1,35 +1,4 @@
 # /orchestrator/src/orchestrator/workflows/main_workflow.py
-# 技术审计与重构报告
-#
-# ### 1. 核心模式: Saga编排模式
-#
-# 这个工作流实现了Saga设计模式, 用于管理一个由多个独立子任务(两个Agent工作流)
-# 组成的长期运行的业务事务。Saga模式的核心思想是, 如果事务中的任何一步失败,
-# 就执行一系列补偿操作来撤销已经成功完成的步骤, 从而维护数据的一致性。
-#
-# ### 2. 关键改进
-#
-# - **健壮的补偿逻辑**:
-#   原始的补偿逻辑是顺序执行的, 如果第一个`cleanup`失败, 第二个就不会执行。
-#   我们将其重构为使用`asyncio.gather(..., return_exceptions=True)`。
-#   这确保了即使一个补偿操作失败, 所有其他的补偿操作仍会被尝试执行。
-#   这是构建一个真正有弹性的回滚机制的关键。
-#
-# - **分布式追踪集成**:
-#   我们生成一个唯一的`trace_id`, 并将其传递给两个子工作流。子工作流又会
-#   将它传递给Activities, Activities再将其包含在对其他服务的API调用中。
-#   这就像给一次请求打上了一个唯一的标签, 使得我们可以在日志系统中追踪
-#   这次请求的完整生命周期, 极大地简化了分布式系统的调试。
-#
-# - **可观测性: 状态查询(Query Method)**:
-#   与Agent工作流类似, 我们为这个主工作流也添加了`get_status`查询方法。
-#   这个方法不仅返回主工作流的状态, 还会**级联查询**其子工作流的状态。
-#   这意味着UI只需要查询这一个端点, 就能获得整个任务的详细、分层的实时状态。
-#
-# - **明确的子工作流管理**:
-#   我们为子工作流设置了`parent_close_policy=ParentClosePolicy.TERMINATE`,
-#   意味着如果主工作流因任何原因(如取消)被终止, 它的所有子工作流也会被
-#   自动终止。这可以防止产生“孤儿”工作流, 避免了资源泄漏。
 
 import asyncio
 import uuid
@@ -129,7 +98,7 @@ class MainSagaWorkflow:
             )
 
             # 检查哪个Agent成功了, 并为其执行补偿操作
-            compensations: List[workflow.ActivityHandle] =
+            compensations: List[workflow.ActivityHandle] = []
             if self._agent_a_handle:
                 try:
                     # 检查Agent A是否成功

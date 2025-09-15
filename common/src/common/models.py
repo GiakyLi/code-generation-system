@@ -1,37 +1,4 @@
 # /common/src/common/models.py
-# 技术审计与重构报告
-#
-# ### 1. 核心变更: 增强数据模型的验证与健壮性
-#
-# 原始的数据模型(Pydantic BaseModel)只定义了数据的形状, 但缺乏严格的验证。
-# 这意味着无效的数据(如负的迭代次数、格式错误的URL)可能会进入系统核心逻辑,
-# 导致不可预测的运行时错误。
-#
-# ### 2. 实施策略: 利用Pydantic的验证能力
-#
-# 我们对模型进行了如下增强, 以在系统边界(API入口)就拒绝无效数据, 实现“防卫式编程”。
-#
-# - **使用`Field`进行范围验证**:
-#   在`InitialRequest`中, `max_iterations`现在使用`Field(gt=0, le=20)`进行约束。
-#   `gt=0`确保了迭代次数必须是正数, `le=20`则作为一个简单的安全限制, 防止滥用导致
-#   过长的循环和资源消耗。任何超出此范围的请求都会在被接受时立即失败。
-#
-# - **使用专用类型进行格式验证**:
-#   `test_files_url`的类型从普通的`str`改为了Pydantic的`HttpUrl`。
-#   这个类型会自动验证传入的字符串是否是一个合法的HTTP或HTTPS URL。
-#   这可以防止因URL格式错误导致后续的HTTP请求失败。
-#
-# - **引入`TraceableRequest`混入类**:
-#   为了支持跨服务的分布式追踪, 我们创建了一个`TraceableRequest`混入类,
-#   它包含一个可选的`trace_id`字段。所有服务间的请求模型都应继承它,
-#   以便在整个调用链中传递和记录同一个追踪ID, 这是实现系统可观测性的关键一环。
-#
-# ### 3. 带来的好处
-#
-# 这些看似微小的改动, 极大地提升了系统的整体健壮性。它们将数据验证的责任
-# 从业务逻辑中分离出来, 集中在数据模型定义中, 使得代码更清晰、更安全。
-# 通过在数据进入系统的第一时间进行严格校验, 我们遵循了“快速失败”原则,
-# 从而避免了无效数据污染系统状态, 减少了后期调试的难度。
 
 from typing import Any, Dict, List, Optional
 
@@ -91,7 +58,7 @@ class AgentState(BaseModel):
     initial_request: InitialRequest
     faulty_code: Optional[str] = None
     # 类型从Any改为更具体的Dict, 增强类型安全性
-    test_errors: Optional] = None
+    test_errors: Optional[Dict[str, Any]] = None
 
 
 class FinalOutput(BaseModel):
@@ -104,8 +71,8 @@ class FinalOutput(BaseModel):
     code_a: Optional[str] = None
     code_b: Optional[str] = None
     # 错误信息现在是结构化的, 而不仅仅是字符串
-    errors_a: Optional]] = None
-    errors_b: Optional]] = None
+    errors_a: Optional[Dict[str, Any]] = None
+    errors_b: Optional[Dict[str, Any]] = None
     diff: Optional[str] = None
 
 
@@ -117,7 +84,7 @@ class AgentStatus(BaseModel):
     current_iteration: int
     max_iterations: int
     status: str  # e.g., "GENERATING_CODE", "TESTING", "REFINING_PROMPT"
-    last_test_summary: Optional] = None
+    last_test_summary: Optional[Dict[str, Any]] = None
 
 
 class MainWorkflowStatus(BaseModel):

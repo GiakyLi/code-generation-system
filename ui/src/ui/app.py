@@ -68,7 +68,7 @@ async def poll_workflow_status(
     while True:
         try:
             # 使用查询来获取实时状态
-            status = await handle.query(MainSagaWorkflow.get_status)
+            status = await handle.query("get_status")
             display_status(status_container, status)
             # 检查工作流是否已完成
             # 这是一个技巧: 尝试用0.1秒超时获取结果
@@ -156,7 +156,7 @@ def main() -> None:
             st.success(f"工作流成功完成: {result.get('message')}")
             code_a = result.get("code_a", "")
             code_b = result.get("code_b", "")
-            tab1, tab2, tab3 = st.tabs()
+            tab1, tab2, tab3 = st.tabs(["Agent A Code", "Agent B Code", "Code Diff"])
             with tab1:
                 st.code(code_a, language="python")
             with tab2:

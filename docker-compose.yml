@@ -33,7 +33,8 @@ services:
 
   orchestrator:
     build:
-      context: ./orchestrator
+      context: .
+      dockerfile: orchestrator/Dockerfile
     command: poetry run python -m orchestrator.run_worker
     volumes:
       # 在生产环境中, 应避免挂载源代码。这里为方便开发而保留。
@@ -61,7 +62,8 @@ services:
 
   sandbox:
     build:
-      context: ./sandbox
+      context: .
+      dockerfile: sandbox/Dockerfile
     command: poetry run uvicorn sandbox.main:app --host 0.0.0.0 --port 8000
     volumes:
       - ./sandbox/src:/app/src
@@ -70,7 +72,6 @@ services:
       - dind # 沙箱服务依赖于隔离的Docker环境
     env_file:
       - .env
-    # 关键安全变更: 不再挂载主机Docker Socket, 而是连接到dind服务
     environment:
       # DOCKER_HOST指向dind容器内的Docker守护进程, 而不是主机
       - DOCKER_HOST=tcp://dind:2375
@@ -92,7 +93,6 @@ services:
           memory: '512M'
     restart: unless-stopped
 
-  # 新增: 隔离的Docker-in-Docker (DinD)服务
   dind:
     image: docker:24.0-dind
     privileged: true # DinD需要特权模式来运行, 但其影响被隔离在自己的网络中
@@ -115,7 +115,8 @@ services:
 
   ui:
     build:
-      context: ./ui
+      context: .
+      dockerfile: ui/Dockerfile
     command: poetry run streamlit run src/ui/app.py --server.port 8501 --server.address 0.0.0.0
     volumes:
       - ./ui/src:/app/src
@@ -142,7 +143,6 @@ services:
           memory: '512M'
     restart: unless-stopped
 
-  # 新增: 用于提供测试文件的服务
   # 这是一个简单的文件服务器, 用于模拟从URL下载测试文件的场景。
   test-file-server:
     image: python:3.11-slim
@@ -161,7 +161,6 @@ services:
           memory: '64M'
     restart: unless-stopped
 
-  # 新增: 用于构建沙箱执行环境的镜像
   test-execution-env:
     # 这不是一个运行的服务, 而是一个构建目标。
     # `docker-compose build` 会构建这个镜像, 然后`sandbox`服务会使用它。
