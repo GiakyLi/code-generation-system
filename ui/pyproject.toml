@@ -1,0 +1,21 @@
+# /ui/pyproject.toml
+
+[tool.poetry]
+name = "ui"
+version = "1.0.0"
+description = "Interactive Streamlit UI for the code generation system."
+authors =
+packages = [{ include = "ui", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+streamlit = "^1.34.0"
+temporalio = "^1.5.0"
+# 依赖于重构后的common库
+common = { path = "../common", develop = true }
+# 新增: 用于在UI中展示代码差异
+diff-match-patch = "^20230430"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

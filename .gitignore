@@ -1,0 +1,15 @@
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Poetry
+.pypoetry-assets/
+
+# IDE and editor files
+.vscode/
+.idea/
+
+# Environment variables file (contains secrets)
+.env

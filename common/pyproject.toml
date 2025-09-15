@@ -1,0 +1,20 @@
+# /common/pyproject.toml
+
+[tool.poetry]
+name = "common"
+version = "1.0.0"
+description = "Shared, validated data models and utilities for the code generation system."
+authors =
+packages = [{ include = "common", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pydantic = "^2.7.1"
+# 新增: 引入pydantic-settings用于类型安全的配置管理
+pydantic-settings = "^2.2.1"
+# 新增: 引入structlog用于结构化、可观测的日志记录
+structlog = "^24.1.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

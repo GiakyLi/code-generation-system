@@ -1,0 +1,56 @@
+# /pyproject.toml
+
+[tool.poetry]
+name = "code-generation-system"
+version = "1.0.0"
+description = "A resilient, asynchronous dual-agent code generation system, refactored for production."
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [
+    { include = "common", from = "common/src"},
+    { include = "orchestrator", from = "orchestrator/src" },
+    { include = "sandbox", from = "sandbox/src" },
+    { include = "ui", from = "ui/src" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+common = { path = "common", develop = true }
+orchestrator = { path = "orchestrator", develop = true }
+sandbox = { path = "sandbox", develop = true }
+ui = { path = "ui", develop = true }
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.4.4"
+black = "^24.4.2"
+mypy = "^1.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+lint = "ruff check ."
+format = "ruff format ."
+check-types = "mypy ."
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+ignore = [
+    "E501",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]

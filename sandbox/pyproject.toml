@@ -1,0 +1,23 @@
+# /sandbox/pyproject.toml
+[tool.poetry]
+name = "sandbox"
+version = "1.0.0"
+description = "Secure, isolated execution sandbox microservice."
+authors =
+packages = [{ include = "sandbox", from = "src"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.111.0"
+uvicorn = { extras = ["standard"], version = "^0.29.0" }
+# docker-py的替代品, 提供了更好的类型提示和现代化的API
+docker = "^7.1.0"
+httpx = "^0.27.0"
+# 依赖于重构后的common库
+common = { path = "../common", develop = true }
+# 新增: python-multipart用于处理可能的表单数据
+python-multipart = "^0.0.9"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

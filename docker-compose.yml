@@ -1,0 +1,186 @@
+# /docker-compose.yml
+
+version: '3.8'
+
+services:
+  temporal:
+    image: temporalio/auto-setup:1.21.0
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=sqlite3
+      - DBNAME=/data/temporal.db
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamic_config.yaml
+    volumes:
+      - temporal_db:/data
+      - ./temporal_config:/config
+    networks:
+      - temporal-net
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "cluster", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '1G'
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+    command: poetry run python -m orchestrator.run_worker
+    volumes:
+      # 在生产环境中, 应避免挂载源代码。这里为方便开发而保留。
+      - ./orchestrator/src:/app/src
+      - ./common/src:/app/common/src
+    depends_on:
+      temporal:
+        condition: service_healthy # 等待Temporal完全就绪
+    env_file:
+      - .env
+    networks:
+      - temporal-net
+      - app-net
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "orchestrator.run_worker"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '512M'
+    restart: unless-stopped
+
+  sandbox:
+    build:
+      context: ./sandbox
+    command: poetry run uvicorn sandbox.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./sandbox/src:/app/src
+      - ./common/src:/app/common/src
+    depends_on:
+      - dind # 沙箱服务依赖于隔离的Docker环境
+    env_file:
+      - .env
+    # 关键安全变更: 不再挂载主机Docker Socket, 而是连接到dind服务
+    environment:
+      # DOCKER_HOST指向dind容器内的Docker守护进程, 而不是主机
+      - DOCKER_HOST=tcp://dind:2375
+    networks:
+      - app-net
+      - sandbox-net # 与dind通信的私有网络
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '512M'
+    restart: unless-stopped
+
+  # 新增: 隔离的Docker-in-Docker (DinD)服务
+  dind:
+    image: docker:24.0-dind
+    privileged: true # DinD需要特权模式来运行, 但其影响被隔离在自己的网络中
+    command: --storage-driver=vfs
+    volumes:
+      - dind_storage:/var/lib/docker
+    networks:
+      - sandbox-net # 只暴露给sandbox服务
+    healthcheck:
+      test: ["CMD", "docker", "info"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: '1G'
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ./ui
+    command: poetry run streamlit run src/ui/app.py --server.port 8501 --server.address 0.0.0.0
+    volumes:
+      - ./ui/src:/app/src
+      - ./common/src:/app/common/src
+    depends_on:
+      - temporal
+    env_file:
+      - .env
+    ports:
+      - "8501:8501"
+    networks:
+      - temporal-net
+      - app-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '512M'
+    restart: unless-stopped
+
+  # 新增: 用于提供测试文件的服务
+  # 这是一个简单的文件服务器, 用于模拟从URL下载测试文件的场景。
+  test-file-server:
+    image: python:3.11-slim
+    command: python -m http.server 8080
+    working_dir: /static
+    volumes:
+      - ./test_assets:/static
+    ports:
+      - "8080:8080"
+    networks:
+      - app-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: '64M'
+    restart: unless-stopped
+
+  # 新增: 用于构建沙箱执行环境的镜像
+  test-execution-env:
+    # 这不是一个运行的服务, 而是一个构建目标。
+    # `docker-compose build` 会构建这个镜像, 然后`sandbox`服务会使用它。
+    build:
+      context: .
+      dockerfile: sandbox/test_env.Dockerfile
+    image: test-execution-env:latest
+
+# 顶级的 volumes 块，用于声明持久化数据卷
+volumes:
+  temporal_db:
+  dind_storage:
+
+# 顶级的 networks 块，用于定义服务间的网络
+networks:
+  temporal-net:
+    driver: bridge
+  app-net:
+    driver: bridge
+  sandbox-net:
+    driver: bridge
+    internal: true # 这是一个内部网络, 增强了dind的隔离性
