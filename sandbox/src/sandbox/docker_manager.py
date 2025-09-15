@@ -1,47 +1,7 @@
 # /sandbox/src/sandbox/docker_manager.py
-# 技术审计与重构报告
-#
-# ### 1. 核心安全重构: 从Docker-out-of-Docker到隔离的DinD客户端
-#
-# 这是整个项目安全审计中最重要的修改。原始实现直接与主机的Docker守护进程交互,
-# 构成了严重的安全漏洞。
-#
-# **重构策略:**
-# - **客户端初始化**: `__init__`方法现在通过`docker.DockerClient(base_url=docker_host)`
-#   来初始化。`docker_host`参数从新的配置系统中获取, 它指向的是隔离的DinD
-#   服务的TCP端点(例如`tcp://dind:2375`), 而不是默认的Unix套接字。
-#   这从根本上切断了`sandbox`服务与主机系统的联系。
-#
-# - **移除镜像构建逻辑**: `build_test_image`方法已被完全移除。`sandbox`服务
-#   不再负责构建镜像, 它现在是一个纯粹的镜像使用者, 遵循不可变基础设施原则。
-#
-# ### 2. 执行环境加固
-#
-# 我们对容器的运行参数进行了多项加固, 以最小化不可信代码可能造成的损害:
-#
-# - **网络隔离(`network_mode='none'`)**: 这是最关键的加固措施之一。它完全禁用了
-#   执行容器的网络栈。这意味着在容器内运行的代码无法发起任何出站网络连接,
-#   有效防止了数据泄露、或利用该容器攻击内部网络中的其他服务。
-#
-# - **资源限制(`mem_limit`, `cpus`)**: 设置了严格的内存和CPU配额。这可以防止
-#   恶意代码通过消耗大量资源(如内存炸弹、fork炸弹)来影响其他容器或主机。
-#
-# - **PID限制(`pids_limit`)**: 限制了容器内可以创建的进程数量, 是防御"fork炸弹”
-#   攻击的有效手段。
-#
-# - **只读文件系统(`read_only=True`)**: 容器的文件系统被设置为只读。代码只能在
-#   通过`volumes`挂载的临时工作目录中进行写操作。这增加了攻击者在容器内
-#   持久化或修改系统文件的难度。
-#
-# ### 3. 异步和错误处理
-#
-# - **真正的异步执行**: `run_sandboxed_test`现在是一个真正的`async`方法,
-#   它使用`asyncio.to_thread`将同步的Docker SDK调用放到一个独立的线程中执行,
-#   避免了阻塞FastAPI的事件循环。
-# - **详细的错误报告**: 错误处理逻辑被增强, 现在可以捕获并返回容器的`stdout`和
-#   `stderr`, 为调试提供了极其宝贵的上下文信息。
 
 import asyncio
+import os
 import io
 import json
 import shutil
@@ -173,7 +133,13 @@ class SandboxManager:
                 response = client.get(url, follow_redirects=True, timeout=30.0)
                 response.raise_for_status()
             with tarfile.open(fileobj=io.BytesIO(response.content), mode="r:*") as tar:
-                tar.extractall(path=path)
+                # 优化: 逐个安全地解压成员
+                for member in tar.getmembers():
+                    member_path = os.path.join(path, member.name)
+                    # 安全检查：确保解压路径在目标目录内
+                    if not os.path.abspath(member_path).startswith(os.path.abspath(path)):
+                        raise SandboxExecutionError(f"Malicious tar file detected: {member.name}")
+                    tar.extract(member, path=path)
         except httpx.RequestError as e:
             raise SandboxExecutionError(
                 f"Failed to download test files from {url}"
