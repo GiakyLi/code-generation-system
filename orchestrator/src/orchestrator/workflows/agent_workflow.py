@@ -40,7 +40,7 @@ refine_prompt = activity.create(
 @workflow.defn
 class AgentFSMWorkflow:
     def __init__(self) -> None:
-        self._state: Optional = None
+        self._state: Optional[AgentState] = None
         self._status: str = "PENDING"
         self._last_test_summary: Dict = {}
 

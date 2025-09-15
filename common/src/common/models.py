@@ -91,5 +91,5 @@ class MainWorkflowStatus(BaseModel):
     """用于查询主Saga工作流当前状态的数据模型。"""
 
     status: str  # e.g., "RUNNING", "SUCCESS", "FAILED"
-    agent_a_status: Optional = None
-    agent_b_status: Optional = None
+    agent_a_status: Optional[AgentStatus] = None
+    agent_b_status: Optional[AgentStatus] = None

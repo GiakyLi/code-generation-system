@@ -4,7 +4,7 @@
 name = "ui"
 version = "1.0.0"
 description = "Interactive Streamlit UI for the code generation system."
-authors =
+authors = ["lee <giakyli0727@gmail.com>"]
 packages = [{ include = "ui", from = "src"}]
 
 [tool.poetry.dependencies]

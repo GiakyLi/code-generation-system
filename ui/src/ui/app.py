@@ -23,7 +23,7 @@ def render_diff(code_a: str, code_b: str) -> str:
 
 
 def display_status(
-    status_container: Any, status: Optional
+    status_container: Any, status: Optional[MainWorkflowStatus]
 ) -> None:
     """在Streamlit容器中渲染工作流状态。"""
     if not status:
