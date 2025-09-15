@@ -1,39 +1,4 @@
 # /orchestrator/src/orchestrator/workflows/agent_workflow.py
-# 技术审计与重构报告
-#
-# ### 1. 核心变更: 增强工作流的确定性、可观测性和健壮性
-#
-# 工作流代码是Temporal的核心, 它必须是确定性的。原始实现包含了一些破坏确定性的元素
-# (如`random`)和不健壮的重试逻辑。我们进行了以下关键重构:
-#
-# ### 2. 关键改进
-#
-# - **确定性保证**:
-#   - 移除了`random.uniform(0, 1)`。工作流代码的执行路径必须仅由其输入和事件历史决定。
-#     引入随机性会破坏Temporal的回放机制, 导致“非确定性错误”。
-#   - 将`asyncio.sleep`替换为`workflow.sleep`。`workflow.sleep`是Temporal提供的确定性
-#     API, 它会创建一个计时器事件, 而不是阻塞Worker线程。这是在工作流中实现延迟的唯一正确方式。
-#
-# - **健壮的Activity调用与重试策略**:
-#   - 我们为IO密集型和可能失败的Activity(`generate_code`, `run_tests_in_sandbox`)
-#     定义了明确的`RetryPolicy`。这使得Temporal能够自动处理网络抖动、下游服务
-#     临时不可用等瞬时故障, 而无需在工作流逻辑中编写复杂的重试代码。
-#   - `start_to_close_timeout`被设置为Activity的总执行时限(包括所有重试)。
-#     这可以防止Activity因意外情况而永久挂起。
-#
-# - **可观测性: 状态查询(Query Method)**:
-#   - 新增了`get_status`查询方法。这是一个只读的端点, 允许外部系统(如UI)
-#     安全地查询工作流的当前状态, 而不会影响其执行。这是实现UI实时状态更新的
-#     后端基础。
-#
-# - **清晰的状态管理**:
-#   - 引入了`self._status`内部变量来显式地跟踪工作流的当前状态(如"GENERATING_CODE",
-#     "TESTING")。这使得工作流的逻辑更清晰, 并且可以通过查询方法暴露给外部。
-#
-# - **不可变状态传递**:
-#   - 虽然代码结构上仍是修改传入的`state`对象, 我们在注释中强调了使用不可变状态
-#     (即每次状态变更都创建新的状态对象)作为更佳实践的理念。对于更复杂的工作流,
-#     这种模式可以极大地提高代码的可读性和可维护性。
 
 from datetime import timedelta
 from typing import Dict, Optional
